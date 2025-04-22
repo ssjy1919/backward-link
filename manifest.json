@@ -3,7 +3,7 @@
 	"name": "backward link",
 	"version": "0.0.1",
 	"minAppVersion": "0.15.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
+	"description": "在当前块链接的目标文件文本块末尾，反向添加一个链接到当前文件文本块的块链接。实现块与块之间的双向链接。",
 	"author": "Obsidian",
 	"authorUrl": "https://obsidian.md",
 	"fundingUrl": "https://obsidian.md/pricing",

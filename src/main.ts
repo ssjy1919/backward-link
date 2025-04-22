@@ -51,7 +51,7 @@ export default class backwardLinkPlugin extends Plugin {
         });
         this.addCommand({
 			id: "backwardLinkPlugin-foot-editor-command",
-			name: "以脚注的形式插入",
+			name: "显示为脚注的形式",
 			editorCallback: (editor: Editor, view: MarkdownView) => {
 				reverseinsertionlink(this, editor, "foot");
 			},
