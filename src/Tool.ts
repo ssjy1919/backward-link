@@ -1,23 +1,18 @@
-import {
-	BlockCache,
-	CachedMetadata,
-	Editor,
-	Notice,
-	Plugin,
-	TFile,
-} from "obsidian";
+import { BlockCache, CachedMetadata, Editor, Notice, TFile } from "obsidian";
 import BidirectionalblockLinkPlugin from "./main";
 import { DateTime } from "luxon";
-// 获取当前行所属的块（block）的 ID。
-function getBlockLinkID(
-	activeFile: TFile,
-	currentLine: number,
-	plugin: BidirectionalblockLinkPlugin
-) {
-	// 获取当前活动文件的元数据缓存
-	const cache = plugin.app.metadataCache.getFileCache(activeFile);
+
+interface VaultConfig {
+	alwaysUpdateLinks: Boolean;
+	newLinkFormat: "relative" | "absolute" | "shortest";
+	showInlineTitle: Boolean;
+	showUnsupportedFiles: Boolean;
+	useMarkdownLinks: Boolean;
+}
+/** 获取当前行所属的块（block）的 ID。 */
+function getBlockLinkID(cache: CachedMetadata, currentLine: number) {
 	// 确保缓存中存在 blocks 对象，避免后续操作出现错误
-	if (cache?.blocks) {
+	if (cache.blocks) {
 		// 遍历缓存中的所有块，查找包含当前行的块
 		const blocks = Object.values(cache.blocks).find((block) => {
 			return (
@@ -62,7 +57,7 @@ function InsertReverseLink(
 		activeFile.path
 	);
 
-	if (!linkFile){
+	if (!linkFile) {
 		new Notice("目标块 ID 失效");
 		return;
 	}
@@ -77,13 +72,13 @@ function InsertReverseLink(
 	const linkFileCache = plugin.app.metadataCache.getFileCache(linkFile);
 	if (linkFileCache?.blocks) {
 		// 遍历链接文件缓存中的所有块，查找包含当前行链接的块
-		const blocks = Object.values(linkFileCache.blocks).find((block) => {
+		const linkBlocks = Object.values(linkFileCache.blocks).find((block) => {
 			return block.id === linkBlock;
 		});
-		if (blocks) return { blocks, linkFile };
+		if (linkBlocks) return { linkBlocks, linkFile, link };
 	}
 }
-/** 插入文本 */
+/** 插入反向链接 */
 async function insertTextAtPosition(
 	plugin: BidirectionalblockLinkPlugin,
 	blocks: BlockCache,
@@ -113,7 +108,7 @@ async function insertTextAtPosition(
 		const newContent = lines.join("\n");
 		await plugin.app.vault.modify(targetFile, newContent);
 		new Notice(
-			`在链接文件第${
+			`在 ${linkFile.basename} 第${
 				blocks.position.end.line + 1
 			}行成功插入链接：${blockLinkID}`,
 			10000
@@ -125,33 +120,8 @@ async function insertTextAtPosition(
 		return false;
 	}
 }
-// 嵌入块链接
-function blockLink(
-	activeFile: TFile,
-	plugin: BidirectionalblockLinkPlugin,
-	editor: Editor
-) {
-    const cursor = editor.getCursor();
-    if (!cursor) {
-        new Notice("请先在编辑器中点击定位光标");
-        return;
-    }
-	const currentLine = cursor.line;
-	let blockLinkID = getBlockLinkID(activeFile, currentLine, plugin);
-	if (!blockLinkID) {
-		blockLinkID = getDate(plugin);
-	}
-	const currentLineContent = editor.getLine(currentLine);
-	// 获取当前行的行尾位置
-	const lineEnd = {
-		line: currentLine,
-		ch: currentLineContent.length,
-	};
 
-	return { blockLinkID, lineEnd };
-}
-
-/** 验证块ID是否重复 */
+/** 保证证生成的新 ID 的不重复*/
 function checkBlockIDDuplicate(cache: CachedMetadata, blockLinkID: string) {
 	if (cache.blocks && Object.keys(cache.blocks).includes(blockLinkID)) {
 		blockLinkID += "x";
@@ -175,33 +145,81 @@ export async function reverseinsertionlink(
 		new Notice("出错了，没找到当前文件元数据缓存");
 		return;
 	}
-	// 当前文件光标位置的块ID
-	const block = blockLink(activeFile, plugin, editor);
-	if (!block) {
-		return;
-	}
-	let { blockLinkID, lineEnd } = block;
-	blockLinkID = checkBlockIDDuplicate(cache, blockLinkID);
-	// 光标所指向的链接，在对方文件里的块ID
+
+	/** 光标所指向的链接，在对方文件里的块ID */
 	const reverseLinkInfo = InsertReverseLink(activeFile, plugin, editor);
 	if (!reverseLinkInfo) {
 		return;
 	}
-	const { blocks, linkFile } = reverseLinkInfo;
+
+	let blockLinkID = getBlockLinkID(cache, editor.getCursor().line);
+	if (!blockLinkID) {
+		blockLinkID = getDate(plugin);
+		blockLinkID = checkBlockIDDuplicate(cache, blockLinkID);
+	}
+	const { linkBlocks, linkFile, link } = reverseLinkInfo;
+	if (plugin.settings.renameLink) {
+		const replaceRangeText = `|${link.link.split("#")[0]}`;
+		if (!link.original.includes("|")) {
+			editor.replaceRange(
+				replaceRangeText,
+				{ line: link.position.end.line, ch: link.position.end.col - 2 },
+				{ line: link.position.end.line, ch: link.position.end.col - 2 }
+			);
+			editor.setCursor({
+				line: link.position.end.line,
+				ch: link.position.end.col + replaceRangeText.length,
+			});
+		}
+	}
+	//@ts-ignore
+	const newLinkFormat = (plugin.app.vault.config as VaultConfig)
+		.newLinkFormat;
+	const files = plugin.app.vault
+		.getFiles()
+		.filter((file: TFile) => file.name === activeFile.name);
 	if (displayText == "basename") {
-		displayText = `[[${activeFile.path}#^${blockLinkID}|${activeFile.basename}]]`;
+		displayText = `[[${
+			files.length === 1 && newLinkFormat === "shortest"
+				? activeFile.basename
+				: activeFile.path
+		}#^${blockLinkID}|${activeFile.basename}]]`;
 	} else if (displayText == "path") {
-		displayText = `[[${activeFile.path}#^${blockLinkID}]]`;
+		displayText = `[[${
+			files.length === 1 && newLinkFormat === "shortest"
+				? activeFile.basename
+				: activeFile.path
+		}#^${blockLinkID}]]`;
 	} else if (displayText == "foot") {
-		displayText = `^[[[${activeFile.path}#^${blockLinkID}]]]`;
+		displayText = `^[[[${
+			files.length === 1 && newLinkFormat === "shortest"
+				? activeFile.basename
+				: activeFile.path
+		}#^${blockLinkID}]]]`;
 	} else if (displayText == "custom") {
-		displayText = `[[${activeFile.path}#^${blockLinkID}|${plugin.settings.displayText}]]`;
+		displayText = `[[${
+			files.length === 1 && newLinkFormat === "shortest"
+				? activeFile.basename
+				: activeFile.path
+		}#^${blockLinkID}|${plugin.settings.displayText}]]`;
 	}
 	const insertText = await insertTextAtPosition(
 		plugin,
-		blocks,
+		linkBlocks,
 		linkFile,
 		displayText
 	);
-	if (insertText) editor.replaceRange(` ^${blockLinkID}`, lineEnd, lineEnd);
+	if (!getBlockLinkID(cache, editor.getCursor().line) && insertText)
+		// 修改了当前行的链接之后，需要重新获取当前行的长度
+		editor.replaceRange(
+			` ^${blockLinkID}`,
+			{
+				line: editor.getCursor().line,
+				ch: editor.getLine(editor.getCursor().line).length,
+			},
+			{
+				line: editor.getCursor().line,
+				ch: editor.getLine(editor.getCursor().line).length,
+			}
+		);
 }

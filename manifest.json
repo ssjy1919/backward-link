@@ -1,9 +1,9 @@
 {
 	"id": "backward-link",
 	"name": "backward link",
-	"version": "0.0.1",
+	"version": "0.0.2",
 	"minAppVersion": "0.15.0",
-	"description": "在当前块链接的目标文件文本块末尾，反向添加一个链接到当前文件文本块的块链接。实现块与块之间的双向链接。",
+	"description": "编辑模式下，在光标处块链接目标的块末尾，添加一个链接到当前块的块链接。实现块与块之间精准的双向链接。",
 	"author": "Obsidian",
 	"authorUrl": "https://obsidian.md",
 	"fundingUrl": "https://obsidian.md/pricing",

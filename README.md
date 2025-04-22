@@ -1,4 +1,4 @@
-# 这是一个Obsidian （https://obsidian.md） 的插件。
+# 这是一个[Obsidian](https://obsidian.md) 的插件。
 
 作用是在当前块链接的目标文件文本块末尾，反向添加一个链接到当前文件文本块的块链接。实现块与块之间的双向链接。
 

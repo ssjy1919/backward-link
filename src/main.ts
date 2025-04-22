@@ -14,12 +14,15 @@ interface MyPluginSettings {
 	/** 块ID格式 */
 	blockID: string;
 	/** 链接的显示文本格式 */
-	displayText: string;
+    displayText: string;
+    /** 重命名当前链接 */
+    renameLink: boolean;
 }
 
 const DEFAULT_SETTINGS: MyPluginSettings = {
 	blockID: "yyyyMMddHHmmss",
-	displayText: "basename",
+    displayText: "^",
+    renameLink: true,
 };
 
 export default class backwardLinkPlugin extends Plugin {
@@ -30,28 +33,28 @@ export default class backwardLinkPlugin extends Plugin {
 
 		this.addCommand({
 			id: "backwardLinkPlugin-basename-editor-command",
-			name: "显示文字为文件名",
+			name: "以文件名形式在链接目标的块末尾插入反向链接",
 			editorCallback: (editor: Editor, view: MarkdownView) => {
 				reverseinsertionlink(this, editor, "basename");
 			},
         });
         this.addCommand({
 			id: "backwardLinkPlugin-path-editor-command",
-			name: "显示原样",
+			name: "以 Obsidian 默认形式在链接目标的块末尾插入反向链接",
 			editorCallback: (editor: Editor, view: MarkdownView) => {
 				reverseinsertionlink(this, editor, "path");
 			},
         });
         this.addCommand({
 			id: "backwardLinkPlugin-custom-editor-command",
-			name: `显示文字为自定义文字：${this.settings.displayText}`,
+			name: `以自定义文字为 ${this.settings.displayText} 在链接目标的块末尾插入反向链接`,
 			editorCallback: (editor: Editor, view: MarkdownView) => {
 				reverseinsertionlink(this, editor, "custom");
 			},
         });
         this.addCommand({
 			id: "backwardLinkPlugin-foot-editor-command",
-			name: "显示为脚注的形式",
+			name: "以脚注形式在链接目标的块末尾插入反向链接",
 			editorCallback: (editor: Editor, view: MarkdownView) => {
 				reverseinsertionlink(this, editor, "foot");
 			},
@@ -116,6 +119,20 @@ class SampleSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.displayText)
 					.onChange(async (value) => {
 						this.plugin.settings.displayText = value;
+						await this.plugin.saveSettings();
+					})
+        );
+        new Setting(containerEl)
+			.setName("更改当前链接的显示文本")
+			.setDesc(
+				"插入反向链接的同时，是否为当前光标处的链接添加显示文本"
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setTooltip("启用或禁用 renameLink 功能")
+					.setValue(this.plugin.settings.renameLink)
+					.onChange(async (value) => {
+						this.plugin.settings.renameLink = value;
 						await this.plugin.saveSettings();
 					})
 			);
