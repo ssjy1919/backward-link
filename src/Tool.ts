@@ -172,6 +172,34 @@ export async function reverseinsertionlink(
 			});
 		}
 	}
+	displayText = getDisplayText(plugin, activeFile, blockLinkID, displayText);
+	const insertText = await insertTextAtPosition(
+		plugin,
+		linkBlocks,
+		linkFile,
+		displayText
+	);
+	if (!getBlockLinkID(cache, editor.getCursor().line) && insertText)
+		// 修改了当前行的链接之后，需要重新获取当前行的长度
+		editor.replaceRange(
+			` ^${blockLinkID}`,
+			{
+				line: editor.getCursor().line,
+				ch: editor.getLine(editor.getCursor().line).length,
+			},
+			{
+				line: editor.getCursor().line,
+				ch: editor.getLine(editor.getCursor().line).length,
+			}
+		);
+}
+/** 根据设置生成块链接文本 */
+function getDisplayText(
+	plugin: BidirectionalblockLinkPlugin,
+	activeFile: TFile,
+	blockLinkID: string,
+	displayText: string
+) {
 	//@ts-ignore
 	const newLinkFormat = (plugin.app.vault.config as VaultConfig)
 		.newLinkFormat;
@@ -203,13 +231,50 @@ export async function reverseinsertionlink(
 				: activeFile.path
 		}#^${blockLinkID}|${plugin.settings.displayText}]]`;
 	}
-	const insertText = await insertTextAtPosition(
+	return displayText;
+}
+
+/** 记录当前块的块链接 */
+export function markblockLink(
+	plugin: BidirectionalblockLinkPlugin,
+	editor: Editor
+) {
+	const activeFile = plugin.app.workspace.getActiveFile();
+	if (!activeFile) return;
+	const cache = plugin.app.metadataCache.getFileCache(activeFile);
+	if (!cache) return;
+	let blockLinkID = getBlockLinkID(cache, editor.getCursor().line);
+	if (!blockLinkID) {
+		blockLinkID = getDate(plugin);
+		blockLinkID = checkBlockIDDuplicate(cache, blockLinkID);
+	}
+	const displayText = getDisplayText(
 		plugin,
-		linkBlocks,
-		linkFile,
-		displayText
+		activeFile,
+		blockLinkID,
+		"basename"
 	);
-	if (!getBlockLinkID(cache, editor.getCursor().line) && insertText)
+	/** 光标所指向的链接，在对方文件里的块ID */
+	const reverseLinkInfo = InsertReverseLink(activeFile, plugin, editor);
+	if (!reverseLinkInfo) {
+		return;
+	}
+	if (plugin.settings.renameLink) {
+		const { link } = reverseLinkInfo;
+		const replaceRangeText = `|${link.link.split("#")[0]}`;
+		if (!link.original.includes("|")) {
+			editor.replaceRange(
+				replaceRangeText,
+				{ line: link.position.end.line, ch: link.position.end.col - 2 },
+				{ line: link.position.end.line, ch: link.position.end.col - 2 }
+			);
+			editor.setCursor({
+				line: link.position.end.line,
+				ch: link.position.end.col + replaceRangeText.length,
+			});
+		}
+	}
+	if (!getBlockLinkID(cache, editor.getCursor().line))
 		// 修改了当前行的链接之后，需要重新获取当前行的长度
 		editor.replaceRange(
 			` ^${blockLinkID}`,
@@ -222,4 +287,24 @@ export async function reverseinsertionlink(
 				ch: editor.getLine(editor.getCursor().line).length,
 			}
 		);
+	plugin.settings.blockLinkMark = displayText;
+	plugin.saveSettings();
+}
+/** 在光标处插入记录中的块链接 */
+export async function insertblockLink(
+	plugin: BidirectionalblockLinkPlugin,
+	editor: Editor
+) {
+	const activeFile = plugin.app.workspace.getActiveFile();
+	if (!activeFile) return;
+	const cache = plugin.app.metadataCache.getFileCache(activeFile);
+	if (!cache) return;
+	const displayText = plugin.settings.blockLinkMark;
+	if (displayText) {
+		editor.replaceRange(
+			displayText,
+			editor.getCursor(),
+			editor.getCursor()
+		);
+	}
 }

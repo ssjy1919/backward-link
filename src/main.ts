@@ -8,7 +8,7 @@ import {
 	PluginSettingTab,
 	Setting,
 } from "obsidian";
-import { reverseinsertionlink } from "./Tool";
+import { insertblockLink, markblockLink, reverseinsertionlink } from "./Tool";
 
 interface MyPluginSettings {
 	/** 块ID格式 */
@@ -17,49 +17,65 @@ interface MyPluginSettings {
     displayText: string;
     /** 重命名当前链接 */
     renameLink: boolean;
+    /** 当前根据当前块ID生成的的链接 */
+    blockLinkMark: string;
 }
 
 const DEFAULT_SETTINGS: MyPluginSettings = {
 	blockID: "yyyyMMddHHmmss",
     displayText: "^",
     renameLink: true,
+    blockLinkMark:"",
 };
 
-export default class backwardLinkPlugin extends Plugin {
+export default class backwardLink extends Plugin {
 	settings: MyPluginSettings;
 
 	async onload() {
 		await this.loadSettings();
 
 		this.addCommand({
-			id: "backwardLinkPlugin-basename-editor-command",
+			id: "backwardLink-basename-editor-command",
 			name: "以文件名形式在链接目标的块末尾插入反向链接",
 			editorCallback: (editor: Editor, view: MarkdownView) => {
 				reverseinsertionlink(this, editor, "basename");
 			},
         });
         this.addCommand({
-			id: "backwardLinkPlugin-path-editor-command",
+			id: "backwardLink-path-editor-command",
 			name: "以 Obsidian 默认形式在链接目标的块末尾插入反向链接",
 			editorCallback: (editor: Editor, view: MarkdownView) => {
 				reverseinsertionlink(this, editor, "path");
 			},
         });
         this.addCommand({
-			id: "backwardLinkPlugin-custom-editor-command",
+			id: "backwardLink-custom-editor-command",
 			name: `以自定义文字为 ${this.settings.displayText} 在链接目标的块末尾插入反向链接`,
 			editorCallback: (editor: Editor, view: MarkdownView) => {
 				reverseinsertionlink(this, editor, "custom");
 			},
         });
         this.addCommand({
-			id: "backwardLinkPlugin-foot-editor-command",
+			id: "backwardLink-foot-editor-command",
 			name: "以脚注形式在链接目标的块末尾插入反向链接",
 			editorCallback: (editor: Editor, view: MarkdownView) => {
 				reverseinsertionlink(this, editor, "foot");
 			},
 		});
-
+        this.addCommand({
+			id: "backwardLink-mark-blockLink-command",
+			name: "记录当前块的块链接",
+			editorCallback: (editor: Editor, view: MarkdownView) => {
+				markblockLink(this, editor);
+			},
+        });
+        this.addCommand({
+			id: "backwardLink-insert-blockLink-command",
+			name: "在光标处插入记录中的块链接",
+			editorCallback: (editor: Editor, view: MarkdownView) => {
+				insertblockLink(this, editor);
+			},
+		});
 		this.addSettingTab(new SampleSettingTab(this.app, this));
 	}
 
@@ -79,9 +95,9 @@ export default class backwardLinkPlugin extends Plugin {
 }
 
 class SampleSettingTab extends PluginSettingTab {
-	plugin: backwardLinkPlugin;
+	plugin: backwardLink;
 
-	constructor(app: App, plugin: backwardLinkPlugin) {
+	constructor(app: App, plugin: backwardLink) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
