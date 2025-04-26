@@ -1,7 +1,7 @@
 {
 	"id": "backward-link",
 	"name": "backward link",
-	"version": "0.0.2",
+	"version": "0.0.3",
 	"minAppVersion": "0.15.0",
 	"description": "编辑模式下，在光标处块链接目标的块末尾，添加一个链接到当前块的块链接。实现块与块之间精准的双向链接。",
 	"author": "Obsidian",
