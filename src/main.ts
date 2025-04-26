@@ -141,11 +141,11 @@ class SampleSettingTab extends PluginSettingTab {
         new Setting(containerEl)
 			.setName("更改当前链接的显示文本")
 			.setDesc(
-				"插入反向链接的同时，是否为当前光标处的链接添加显示文本"
+				"执行命令的同时，为当前光标处的链接添加显示文   本"
 			)
 			.addToggle((toggle) =>
 				toggle
-					.setTooltip("启用或禁用 renameLink 功能")
+					.setTooltip("开启重命名块链接功能")
 					.setValue(this.plugin.settings.renameLink)
 					.onChange(async (value) => {
 						this.plugin.settings.renameLink = value;

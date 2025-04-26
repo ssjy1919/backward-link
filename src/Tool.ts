@@ -1,4 +1,11 @@
-import { BlockCache, CachedMetadata, Editor, Notice, TFile } from "obsidian";
+import {
+	BlockCache,
+	CachedMetadata,
+	Editor,
+	LinkCache,
+	Notice,
+	TFile,
+} from "obsidian";
 import BidirectionalblockLinkPlugin from "./main";
 import { DateTime } from "luxon";
 
@@ -29,8 +36,8 @@ function getDate(plugin: BidirectionalblockLinkPlugin): string {
 	return now.toFormat(format);
 }
 
-//嵌入反向链接
-function InsertReverseLink(
+//查找光标指向的链接所对应的块
+function getLinkBlock(
 	activeFile: TFile,
 	plugin: BidirectionalblockLinkPlugin,
 	editor: Editor
@@ -40,15 +47,15 @@ function InsertReverseLink(
 	// 当前光标指向的链接
 	const link = cache?.links?.find((link) => {
 		if (
-			link.position.end.line === Cursor?.line &&
+			link.position.end.line === Cursor.line &&
 			link.position.end.col >= Cursor.ch &&
-			link.position.start.col <= Cursor.ch
+			link.position.start.col < Cursor.ch
 		) {
 			return link;
 		}
 	});
 	if (!link) {
-		new Notice("没找到光标处的链接");
+		new Notice("光标不在链接文本中");
 		return;
 	}
 	// TFile
@@ -71,7 +78,7 @@ function InsertReverseLink(
 	}
 	const linkFileCache = plugin.app.metadataCache.getFileCache(linkFile);
 	if (linkFileCache?.blocks) {
-		// 遍历链接文件缓存中的所有块，查找包含当前行链接的块
+		// 遍历链接文件缓存中的所有块，查找当前光标链接对应的块
 		const linkBlocks = Object.values(linkFileCache.blocks).find((block) => {
 			return block.id === linkBlock;
 		});
@@ -96,8 +103,11 @@ async function insertTextAtPosition(
 		const lines = fileContent.split("\n");
 		// 获取目标行的内容
 		const targetLine = lines[blocks.position.end.line];
+		console.log(blocks);
 		// 在指定列位置插入文本
-		const insertPosition = blocks.position.end.col - blocks.id.length - 2; // 计算插入位置为块ID之前
+		const insertPosition = targetLine.includes(` ^${blocks.id}`)
+			? blocks.position.end.col - blocks.id.length - 2 // 计算插入位置为块ID之前
+			: blocks.position.end.col; // 块ID不在行尾，直接在行尾插入反向链接
 		const newLine =
 			targetLine.slice(0, insertPosition) +
 			blockLinkID +
@@ -110,13 +120,13 @@ async function insertTextAtPosition(
 		new Notice(
 			`在 ${linkFile.basename} 第${
 				blocks.position.end.line + 1
-			}行成功插入链接：${blockLinkID}`,
+			}行成功插入反向链接：${blockLinkID}`,
 			10000
 		);
 		return true;
 	} catch (error) {
-		console.error("插入文本失败:", error);
-		new Notice(`插入文本失败${error}`, 10000);
+		console.error("插入反向链接失败:", error);
+		new Notice(`插入反向链接失败${error}`, 10000);
 		return false;
 	}
 }
@@ -129,7 +139,7 @@ function checkBlockIDDuplicate(cache: CachedMetadata, blockLinkID: string) {
 	}
 	return blockLinkID;
 }
-//反向插入链接
+//插入反向链接
 export async function reverseinsertionlink(
 	plugin: BidirectionalblockLinkPlugin,
 	editor: Editor,
@@ -145,9 +155,8 @@ export async function reverseinsertionlink(
 		new Notice("出错了，没找到当前文件元数据缓存");
 		return;
 	}
-
 	/** 光标所指向的链接，在对方文件里的块ID */
-	const reverseLinkInfo = InsertReverseLink(activeFile, plugin, editor);
+	const reverseLinkInfo = getLinkBlock(activeFile, plugin, editor);
 	if (!reverseLinkInfo) {
 		return;
 	}
@@ -161,15 +170,7 @@ export async function reverseinsertionlink(
 	if (plugin.settings.renameLink) {
 		const replaceRangeText = `|${link.link.split("#")[0]}`;
 		if (!link.original.includes("|")) {
-			editor.replaceRange(
-				replaceRangeText,
-				{ line: link.position.end.line, ch: link.position.end.col - 2 },
-				{ line: link.position.end.line, ch: link.position.end.col - 2 }
-			);
-			editor.setCursor({
-				line: link.position.end.line,
-				ch: link.position.end.col + replaceRangeText.length,
-			});
+			renameBlockLink(replaceRangeText, editor, link);
 		}
 	}
 	displayText = getDisplayText(plugin, activeFile, blockLinkID, displayText);
@@ -181,17 +182,23 @@ export async function reverseinsertionlink(
 	);
 	if (!getBlockLinkID(cache, editor.getCursor().line) && insertText)
 		// 修改了当前行的链接之后，需要重新获取当前行的长度
-		editor.replaceRange(
-			` ^${blockLinkID}`,
-			{
-				line: editor.getCursor().line,
-				ch: editor.getLine(editor.getCursor().line).length,
-			},
-			{
-				line: editor.getCursor().line,
-				ch: editor.getLine(editor.getCursor().line).length,
-			}
-		);
+		insertBlockID(` ^${blockLinkID}`, editor);
+}
+/** 重命名块链接 */
+function renameBlockLink(
+	replaceRangeText: string,
+	editor: Editor,
+	link: LinkCache
+) {
+	editor.replaceRange(
+		replaceRangeText,
+		{ line: link.position.end.line, ch: link.position.end.col - 2 },
+		{ line: link.position.end.line, ch: link.position.end.col - 2 }
+	);
+	editor.setCursor({
+		line: link.position.end.line,
+		ch: link.position.end.col + replaceRangeText.length,
+	});
 }
 /** 根据设置生成块链接文本 */
 function getDisplayText(
@@ -256,45 +263,37 @@ export function markblockLink(
 	);
 	if (plugin.settings.renameLink) {
 		/** 光标所指向的链接，在对方文件里的块ID */
-		const reverseLinkInfo = InsertReverseLink(activeFile, plugin, editor);
+		const reverseLinkInfo = getLinkBlock(activeFile, plugin, editor);
 		if (reverseLinkInfo) {
 			const { link } = reverseLinkInfo;
 			const replaceRangeText = `|${link.link.split("#")[0]}`;
 			if (!link.original.includes("|")) {
-				editor.replaceRange(
-					replaceRangeText,
-					{
-						line: link.position.end.line,
-						ch: link.position.end.col - 2,
-					},
-					{
-						line: link.position.end.line,
-						ch: link.position.end.col - 2,
-					}
-				);
-				editor.setCursor({
-					line: link.position.end.line,
-					ch: link.position.end.col + replaceRangeText.length,
-				});
+				renameBlockLink(replaceRangeText, editor, link);
 			}
 		}
 	}
 	if (!getBlockLinkID(cache, editor.getCursor().line))
 		// 修改了当前行的链接之后，需要重新获取当前行的长度
-		editor.replaceRange(
-			` ^${blockLinkID}`,
-			{
-				line: editor.getCursor().line,
-				ch: editor.getLine(editor.getCursor().line).length,
-			},
-			{
-				line: editor.getCursor().line,
-				ch: editor.getLine(editor.getCursor().line).length,
-			}
-		);
+		insertBlockID(` ^${blockLinkID}`, editor);
 	plugin.settings.blockLinkMark = displayText;
 	plugin.saveSettings();
+	new Notice(`已记录当前块链接：${displayText}`);
 }
+/** 在当前行尾插入块ID */
+function insertBlockID(blockLinkID: string, editor: Editor) {
+	editor.replaceRange(
+		` ^${blockLinkID}`,
+		{
+			line: editor.getCursor().line,
+			ch: editor.getLine(editor.getCursor().line).length,
+		},
+		{
+			line: editor.getCursor().line,
+			ch: editor.getLine(editor.getCursor().line).length,
+		}
+	);
+}
+
 /** 在光标处插入记录中的块链接 */
 export async function insertblockLink(
 	plugin: BidirectionalblockLinkPlugin,
@@ -311,5 +310,9 @@ export async function insertblockLink(
 			editor.getCursor(),
 			editor.getCursor()
 		);
+		editor.setCursor({
+			line: editor.getCursor().line,
+			ch: editor.getCursor().ch + displayText.length,
+		});
 	}
 }
