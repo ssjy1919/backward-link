@@ -254,24 +254,29 @@ export function markblockLink(
 		blockLinkID,
 		"basename"
 	);
-	/** 光标所指向的链接，在对方文件里的块ID */
-	const reverseLinkInfo = InsertReverseLink(activeFile, plugin, editor);
-	if (!reverseLinkInfo) {
-		return;
-	}
 	if (plugin.settings.renameLink) {
-		const { link } = reverseLinkInfo;
-		const replaceRangeText = `|${link.link.split("#")[0]}`;
-		if (!link.original.includes("|")) {
-			editor.replaceRange(
-				replaceRangeText,
-				{ line: link.position.end.line, ch: link.position.end.col - 2 },
-				{ line: link.position.end.line, ch: link.position.end.col - 2 }
-			);
-			editor.setCursor({
-				line: link.position.end.line,
-				ch: link.position.end.col + replaceRangeText.length,
-			});
+		/** 光标所指向的链接，在对方文件里的块ID */
+		const reverseLinkInfo = InsertReverseLink(activeFile, plugin, editor);
+		if (reverseLinkInfo) {
+			const { link } = reverseLinkInfo;
+			const replaceRangeText = `|${link.link.split("#")[0]}`;
+			if (!link.original.includes("|")) {
+				editor.replaceRange(
+					replaceRangeText,
+					{
+						line: link.position.end.line,
+						ch: link.position.end.col - 2,
+					},
+					{
+						line: link.position.end.line,
+						ch: link.position.end.col - 2,
+					}
+				);
+				editor.setCursor({
+					line: link.position.end.line,
+					ch: link.position.end.col + replaceRangeText.length,
+				});
+			}
 		}
 	}
 	if (!getBlockLinkID(cache, editor.getCursor().line))
