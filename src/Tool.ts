@@ -54,28 +54,21 @@ function getLinkBlock(
 			return link;
 		}
 	});
-	if (!link) {
-		new Notice("光标不在链接文本中");
-		return;
-	}
+	if (!link) return;
 	// TFile
 	const linkFile = plugin.app.metadataCache.getFirstLinkpathDest(
 		link.link.split("#")[0],
 		activeFile.path
 	);
 
-	if (!linkFile) {
-		new Notice("目标块 ID 失效");
-		return;
-	}
+	if (!linkFile) return;
+
 	const linkBlocks = link.link.split("^");
 	let linkBlock = "";
 	if (linkBlocks.length > 1) {
 		linkBlock = link.link.split("^")[1].split("|")[0];
-	} else {
-		new Notice("不是块链接");
-		return;
-	}
+	} else return;
+
 	const linkFileCache = plugin.app.metadataCache.getFileCache(linkFile);
 	if (linkFileCache?.blocks) {
 		// 遍历链接文件缓存中的所有块，查找当前光标链接对应的块
@@ -103,7 +96,6 @@ async function insertTextAtPosition(
 		const lines = fileContent.split("\n");
 		// 获取目标行的内容
 		const targetLine = lines[blocks.position.end.line];
-		console.log(blocks);
 		// 在指定列位置插入文本
 		const insertPosition = targetLine.includes(` ^${blocks.id}`)
 			? blocks.position.end.col - blocks.id.length - 2 // 计算插入位置为块ID之前
@@ -158,6 +150,7 @@ export async function reverseinsertionlink(
 	/** 光标所指向的链接，在对方文件里的块ID */
 	const reverseLinkInfo = getLinkBlock(activeFile, plugin, editor);
 	if (!reverseLinkInfo) {
+		new Notice("光标不在链接文本中或块链接失效");
 		return;
 	}
 
@@ -182,7 +175,7 @@ export async function reverseinsertionlink(
 	);
 	if (!getBlockLinkID(cache, editor.getCursor().line) && insertText)
 		// 修改了当前行的链接之后，需要重新获取当前行的长度
-		insertBlockID(` ^${blockLinkID}`, editor);
+		insertBlockID(blockLinkID, editor);
 }
 /** 重命名块链接 */
 function renameBlockLink(
@@ -274,7 +267,7 @@ export function markblockLink(
 	}
 	if (!getBlockLinkID(cache, editor.getCursor().line))
 		// 修改了当前行的链接之后，需要重新获取当前行的长度
-		insertBlockID(` ^${blockLinkID}`, editor);
+		insertBlockID(blockLinkID, editor);
 	plugin.settings.blockLinkMark = displayText;
 	plugin.saveSettings();
 	new Notice(`已记录当前块链接：${displayText}`);
